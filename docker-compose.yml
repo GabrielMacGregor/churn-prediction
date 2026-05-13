@@ -1,0 +1,66 @@
+services:
+  download-data:
+    build: .
+    profiles:
+      - data
+    environment:
+      KAGGLE_DATASET: ${KAGGLE_DATASET:-blastchar/telco-customer-churn}
+      KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
+      KAGGLE_KEY: ${KAGGLE_KEY:-}
+    command: >
+      bash -c "pip install -r requirements-data.txt --quiet &&
+               python -m src.download_data"
+    volumes:
+      - .:/app
+
+  mlflow:
+    build: .
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////app/mlflow.db
+      --default-artifact-root /app/mlruns
+      --host 0.0.0.0
+      --port 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  api:
+    build: .
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_URI: models:/telco-churn-xgb@production
+      LOG_DB_PATH: /app/data/processed/predictions.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  train:
+    build: .
+    profiles:
+      - training
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    command: python -m src.train
+    volumes:
+      - .:/app
