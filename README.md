@@ -33,7 +33,8 @@ Raw Kaggle CSV
 | Versioning | MLflow Model Registry with ROC-AUC gated `production` alias promotion |
 | REST API | FastAPI with Swagger docs at `/docs` |
 | Validation | Pydantic schema for the customer payload |
-| Monitoring | SQLite prediction log with timestamp, payload, threshold, and score |
+| Monitoring | `/logs` and `/logs/summary` backed by SQLite prediction audit logs |
+| Security | Optional `X-API-Key` authentication through `API_KEY` |
 | Infra | Docker Compose for data download, MLflow, training, and API |
 | CI | GitHub Actions runs Ruff and Pytest |
 
@@ -114,7 +115,6 @@ python -m venv .venv
 pip install -r requirements.txt
 
 # Download the dataset (needs Kaggle credentials in .env)
-pip install -r requirements-data.txt
 copy .env.example .env
 python -m src.download_data
 
@@ -169,6 +169,36 @@ Example response:
 }
 ```
 
+### `GET /logs`
+
+Returns recent prediction audit records. Supports `limit`, `offset`, and optional
+`prediction=0|1` filters.
+
+```bash
+curl "http://localhost:8000/logs?limit=10"
+```
+
+### `GET /logs/summary`
+
+Returns aggregate monitoring counters.
+
+```json
+{
+  "total_predictions": 42,
+  "positive_predictions": 18,
+  "churn_rate": 0.4286,
+  "average_churn_probability": 0.57,
+  "latest_prediction_at": "2026-05-13T16:42:00Z"
+}
+```
+
+If `API_KEY` is configured, send it on protected endpoints:
+
+```bash
+curl "http://localhost:8000/logs/summary" \
+  -H "X-API-Key: your_api_key"
+```
+
 ## Project Structure
 
 ```text
@@ -197,7 +227,6 @@ churn-prediction-api/
 |-- docker-compose.yml
 |-- pyproject.toml
 |-- requirements.txt
-|-- requirements-data.txt
 `-- requirements-dev.txt
 ```
 
@@ -248,6 +277,11 @@ Local default:
 data/processed/predictions.db
 ```
 
+Read logs through:
+
+- `GET /logs`
+- `GET /logs/summary`
+
 ## Tests And Lint
 
 ```bash
@@ -267,10 +301,12 @@ Set these variables in Railway:
 | `MLFLOW_TRACKING_URI` | Your MLflow server URL |
 | `MODEL_URI` | `models:/telco-churn-xgb@production` |
 | `LOG_DB_PATH` | `/data/predictions.db` |
+| `API_KEY` | Secret value required in `X-API-Key` when enabled |
 
 For production, use a persistent database or storage volume for logs and MLflow
 metadata. SQLite is intentionally simple for local development and portfolio demos.
 
 ## Next Steps
 
-- Add an authenticated `/logs` endpoint for prediction monitoring.
+- Add drift checks comparing recent prediction payloads with the training data profile.
+- Add a scheduled retraining workflow.

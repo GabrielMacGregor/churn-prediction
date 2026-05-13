@@ -27,6 +27,7 @@ DEFAULT_MLFLOW_TRACKING_URI = os.getenv(
 DEFAULT_LOG_DB_PATH = Path(
     os.getenv("LOG_DB_PATH", str(PROCESSED_DIR / "predictions.db"))
 ).resolve()
+API_KEY = os.getenv("API_KEY", "")
 
 KAGGLE_DATASET = os.getenv("KAGGLE_DATASET", "blastchar/telco-customer-churn")
 KAGGLE_CONFIG_DIR = Path(os.getenv("KAGGLE_CONFIG_DIR", str(BASE_DIR / ".kaggle"))).resolve()

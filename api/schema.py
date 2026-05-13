@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Literal
+from datetime import datetime
+from typing import Any, Literal
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field
@@ -79,3 +80,21 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     model_uri: str
 
+
+class PredictionLogEntry(BaseModel):
+    id: int
+    created_at: datetime
+    payload: dict[str, Any]
+    churn_probability: float
+    threshold: float
+    prediction: int
+    churn: bool
+    model_uri: str
+
+
+class PredictionLogSummary(BaseModel):
+    total_predictions: int
+    positive_predictions: int
+    churn_rate: float
+    average_churn_probability: float | None
+    latest_prediction_at: datetime | None

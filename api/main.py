@@ -11,10 +11,17 @@ from typing import Any
 
 import mlflow
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Security
+from fastapi.security import APIKeyHeader
 
-from api.schema import CustomerFeatures, HealthResponse, PredictionResponse
-from src.config import DEFAULT_LOG_DB_PATH, DEFAULT_MLFLOW_TRACKING_URI, DEFAULT_MODEL_URI
+from api.schema import (
+    CustomerFeatures,
+    HealthResponse,
+    PredictionLogEntry,
+    PredictionLogSummary,
+    PredictionResponse,
+)
+from src.config import API_KEY, DEFAULT_LOG_DB_PATH, DEFAULT_MLFLOW_TRACKING_URI, DEFAULT_MODEL_URI
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
@@ -22,9 +29,18 @@ logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 MODEL_URI = os.getenv("MODEL_URI", DEFAULT_MODEL_URI)
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", DEFAULT_MLFLOW_TRACKING_URI)
 LOG_DB_PATH = Path(os.getenv("LOG_DB_PATH", str(DEFAULT_LOG_DB_PATH)))
+API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 model: Any | None = None
 model_metadata: dict[str, str | None] = {"uri": MODEL_URI, "version": None}
+
+
+def require_api_key(api_key: str | None = Security(API_KEY_HEADER)) -> None:
+    if not API_KEY:
+        return
+
+    if api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
 
 def init_db() -> None:
@@ -105,6 +121,67 @@ def log_prediction(
         )
 
 
+def fetch_prediction_logs(
+    limit: int = 50,
+    offset: int = 0,
+    prediction: int | None = None,
+) -> list[PredictionLogEntry]:
+    query = """
+        SELECT id, created_at, payload, churn_probability, threshold, prediction, model_uri
+        FROM prediction_logs
+    """
+    params: list[Any] = []
+
+    if prediction is not None:
+        query += " WHERE prediction = ?"
+        params.append(prediction)
+
+    query += " ORDER BY datetime(created_at) DESC, id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    with sqlite3.connect(LOG_DB_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(query, params).fetchall()
+
+    return [
+        PredictionLogEntry(
+            id=row["id"],
+            created_at=row["created_at"],
+            payload=json.loads(row["payload"]),
+            churn_probability=row["churn_probability"],
+            threshold=row["threshold"],
+            prediction=row["prediction"],
+            churn=bool(row["prediction"]),
+            model_uri=row["model_uri"],
+        )
+        for row in rows
+    ]
+
+
+def summarize_prediction_logs() -> PredictionLogSummary:
+    with sqlite3.connect(LOG_DB_PATH) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                COUNT(*) AS total_predictions,
+                COALESCE(SUM(prediction), 0) AS positive_predictions,
+                AVG(churn_probability) AS average_churn_probability,
+                MAX(created_at) AS latest_prediction_at
+            FROM prediction_logs
+            """
+        ).fetchone()
+
+    total_predictions = int(row[0])
+    positive_predictions = int(row[1])
+    return PredictionLogSummary(
+        total_predictions=total_predictions,
+        positive_predictions=positive_predictions,
+        churn_rate=positive_predictions / total_predictions if total_predictions else 0.0,
+        average_churn_probability=row[2],
+        latest_prediction_at=row[3],
+    )
+
+
 def predict_probability(features: CustomerFeatures) -> float:
     if model is None:
         load_model()
@@ -144,6 +221,7 @@ def health() -> HealthResponse:
 def predict(
     payload: CustomerFeatures,
     threshold: float = Query(default=0.5, ge=0.0, le=1.0),
+    _auth: None = Depends(require_api_key),
 ) -> PredictionResponse:
     probability = predict_probability(payload)
     prediction = int(probability >= threshold)
@@ -157,3 +235,18 @@ def predict(
         model_uri=model_metadata["uri"] or MODEL_URI,
         model_version=model_metadata["version"],
     )
+
+
+@app.get("/logs", response_model=list[PredictionLogEntry])
+def prediction_logs(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    prediction: int | None = Query(default=None, ge=0, le=1),
+    _auth: None = Depends(require_api_key),
+) -> list[PredictionLogEntry]:
+    return fetch_prediction_logs(limit=limit, offset=offset, prediction=prediction)
+
+
+@app.get("/logs/summary", response_model=PredictionLogSummary)
+def prediction_log_summary(_auth: None = Depends(require_api_key)) -> PredictionLogSummary:
+    return summarize_prediction_logs()

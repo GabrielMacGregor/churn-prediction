@@ -4,6 +4,7 @@ __pycache__/
 
 .pytest_cache/
 pytest-cache-files-*/
+tests/.runtime/
 .ruff_cache/
 .tmp/
 .ipynb_checkpoints/
