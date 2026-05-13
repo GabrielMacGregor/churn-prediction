@@ -183,10 +183,11 @@ is a known future improvement if live reloading becomes necessary.
 
 ## Next Session Checklist
 
-Start here next time:
+Start with [NEXT_SESSION.md](NEXT_SESSION.md) when moving to the Docker-enabled
+machine.
 
 1. Check `git status --short`.
 2. Check GitHub Actions for the latest push.
-3. Validate Docker locally if Docker is available.
+3. Validate Docker locally.
 4. Choose the next feature from the Active Work Queue.
 5. Update this file before committing.
