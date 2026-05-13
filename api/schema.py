@@ -96,5 +96,10 @@ class PredictionLogSummary(BaseModel):
     total_predictions: int
     positive_predictions: int
     churn_rate: float
+    positive_prediction_rate: float
     average_churn_probability: float | None
+    average_churn_probability_prediction_0: float | None
+    average_churn_probability_prediction_1: float | None
     latest_prediction_at: datetime | None
+    window_hours: float | None = None
+    window_start_at: datetime | None = None

@@ -194,13 +194,24 @@ curl "http://localhost:8000/logs?limit=10"
 
 Returns aggregate monitoring counters.
 
+Use `window_hours` to summarize only recent predictions:
+
+```bash
+curl "http://localhost:8000/logs/summary?window_hours=24"
+```
+
 ```json
 {
   "total_predictions": 42,
   "positive_predictions": 18,
   "churn_rate": 0.4286,
+  "positive_prediction_rate": 0.4286,
   "average_churn_probability": 0.57,
-  "latest_prediction_at": "2026-05-13T16:42:00Z"
+  "average_churn_probability_prediction_0": 0.31,
+  "average_churn_probability_prediction_1": 0.79,
+  "latest_prediction_at": "2026-05-13T16:42:00Z",
+  "window_hours": 24,
+  "window_start_at": "2026-05-12T16:42:00Z"
 }
 ```
 
@@ -208,6 +219,13 @@ If `API_KEY` is configured, send it on protected endpoints:
 
 ```bash
 curl "http://localhost:8000/logs/summary" \
+  -H "X-API-Key: your_api_key"
+```
+
+Authenticated recent log example:
+
+```bash
+curl "http://localhost:8000/logs?limit=20&prediction=1" \
   -H "X-API-Key: your_api_key"
 ```
 
@@ -316,6 +334,7 @@ Read logs through:
 
 - `GET /logs`
 - `GET /logs/summary`
+- `GET /logs/summary?window_hours=24`
 
 ## Tests And Lint
 

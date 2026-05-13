@@ -15,7 +15,7 @@ clearer.
 | Tracking | Done | MLflow experiment, metrics, artifacts, model registry |
 | Promotion | Done | Production alias gated by `test_roc_auc` |
 | Serving | Done | FastAPI `/health` and `/predict` |
-| Monitoring | Done | `/logs` and `/logs/summary` backed by SQLite |
+| Monitoring | Done | `/logs` and windowed `/logs/summary` backed by SQLite |
 | Security | Done | Optional `X-API-Key` auth through `API_KEY` |
 | EDA | Done | Full exploratory notebook at `notebooks/eda.ipynb` |
 | Tests | Done | API and preprocessing tests passing |
@@ -48,6 +48,7 @@ clearer.
 - [x] Add prediction logging with timestamp, payload, probability, threshold, and model URI.
 - [x] Add `/logs` endpoint for recent prediction audit records.
 - [x] Add `/logs/summary` endpoint for aggregate monitoring counters.
+- [x] Add `window_hours` filtering and per-label probability averages to `/logs/summary`.
 - [x] Add optional API key authentication.
 - [x] Add Dockerfile and Docker Compose services for data, MLflow, train, and API.
 - [x] Add production model export CLI and Docker Compose export service.
@@ -114,10 +115,10 @@ Goal: deploy API to Railway with a self-contained image.
 
 Goal: make monitoring more useful for a product team story.
 
-- [ ] Add `GET /logs/summary?window_hours=24`.
-- [ ] Add positive prediction rate over a recent time window.
-- [ ] Add average churn probability by prediction label.
-- [ ] Add README examples for authenticated `/logs` calls.
+- [x] Add `GET /logs/summary?window_hours=24`.
+- [x] Add positive prediction rate over a recent time window.
+- [x] Add average churn probability by prediction label.
+- [x] Add README examples for authenticated `/logs` calls.
 
 ### 6. Explainability with SHAP
 
@@ -170,6 +171,8 @@ is a known future improvement if live reloading becomes necessary.
 | 2026-05-13 | `python -m src.export_model` | Passed, wrote `model_artifact/` |
 | 2026-05-13 | `python -m src.evaluate --model-uri model_artifact` | Passed, ROC-AUC 0.8418 |
 | 2026-05-13 | API `load_model()` with `MODEL_URI=model_artifact` | Passed |
+| 2026-05-13 | `docker --version` | Blocked, Docker not installed/in PATH |
+| 2026-05-13 | GitHub Actions status via connector/`gh` | Blocked, connector 404 and `gh` not installed |
 
 ## Next Session Checklist
 

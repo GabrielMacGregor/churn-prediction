@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -164,8 +165,50 @@ def test_logs_summary_returns_aggregate_metrics(monkeypatch) -> None:
     assert body["total_predictions"] == 2
     assert body["positive_predictions"] == 1
     assert body["churn_rate"] == 0.5
+    assert body["positive_prediction_rate"] == 0.5
     assert body["average_churn_probability"] == 0.5
+    assert body["average_churn_probability_prediction_0"] == 0.2
+    assert body["average_churn_probability_prediction_1"] == 0.8
     assert body["latest_prediction_at"] is not None
+    assert body["window_hours"] is None
+    assert body["window_start_at"] is None
+
+
+def test_logs_summary_supports_recent_window(monkeypatch) -> None:
+    db_path = prepare_test_db(monkeypatch)
+    monkeypatch.setattr(
+        api_main,
+        "model_metadata",
+        {"uri": "models:/test@production", "version": "1"},
+    )
+
+    api_main.log_prediction(SAMPLE_PAYLOAD, probability=0.9, prediction=1, threshold=0.5)
+    api_main.log_prediction(SAMPLE_PAYLOAD, probability=0.1, prediction=0, threshold=0.5)
+
+    old_timestamp = (datetime.now(UTC) - timedelta(hours=48)).isoformat()
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            UPDATE prediction_logs
+            SET created_at = ?
+            WHERE prediction = 0
+            """,
+            (old_timestamp,),
+        )
+
+    with TestClient(api_main.app) as client:
+        response = client.get("/logs/summary?window_hours=24")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_predictions"] == 1
+    assert body["positive_predictions"] == 1
+    assert body["positive_prediction_rate"] == 1.0
+    assert body["average_churn_probability"] == 0.9
+    assert body["average_churn_probability_prediction_0"] is None
+    assert body["average_churn_probability_prediction_1"] == 0.9
+    assert body["window_hours"] == 24.0
+    assert body["window_start_at"] is not None
 
 
 def test_logs_require_api_key_when_configured(monkeypatch) -> None:

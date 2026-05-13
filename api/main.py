@@ -5,7 +5,7 @@ import logging
 import os
 import sqlite3
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -158,27 +158,50 @@ def fetch_prediction_logs(
     ]
 
 
-def summarize_prediction_logs() -> PredictionLogSummary:
+def summarize_prediction_logs(window_hours: float | None = None) -> PredictionLogSummary:
+    window_start_at = None
+    where_clause = ""
+    params: list[Any] = []
+
+    if window_hours is not None:
+        window_start_at = datetime.now(UTC) - timedelta(hours=window_hours)
+        where_clause = "WHERE created_at >= ?"
+        params.append(window_start_at.isoformat())
+
     with sqlite3.connect(LOG_DB_PATH) as connection:
         row = connection.execute(
-            """
+            f"""
             SELECT
                 COUNT(*) AS total_predictions,
                 COALESCE(SUM(prediction), 0) AS positive_predictions,
                 AVG(churn_probability) AS average_churn_probability,
+                AVG(CASE WHEN prediction = 0 THEN churn_probability END)
+                    AS average_churn_probability_prediction_0,
+                AVG(CASE WHEN prediction = 1 THEN churn_probability END)
+                    AS average_churn_probability_prediction_1,
                 MAX(created_at) AS latest_prediction_at
             FROM prediction_logs
-            """
+            {where_clause}
+            """,
+            params,
         ).fetchone()
 
     total_predictions = int(row[0])
     positive_predictions = int(row[1])
+    positive_prediction_rate = (
+        positive_predictions / total_predictions if total_predictions else 0.0
+    )
     return PredictionLogSummary(
         total_predictions=total_predictions,
         positive_predictions=positive_predictions,
-        churn_rate=positive_predictions / total_predictions if total_predictions else 0.0,
+        churn_rate=positive_prediction_rate,
+        positive_prediction_rate=positive_prediction_rate,
         average_churn_probability=row[2],
-        latest_prediction_at=row[3],
+        average_churn_probability_prediction_0=row[3],
+        average_churn_probability_prediction_1=row[4],
+        latest_prediction_at=row[5],
+        window_hours=window_hours,
+        window_start_at=window_start_at,
     )
 
 
@@ -248,5 +271,8 @@ def prediction_logs(
 
 
 @app.get("/logs/summary", response_model=PredictionLogSummary)
-def prediction_log_summary(_auth: None = Depends(require_api_key)) -> PredictionLogSummary:
-    return summarize_prediction_logs()
+def prediction_log_summary(
+    window_hours: float | None = Query(default=None, gt=0.0, le=24 * 365),
+    _auth: None = Depends(require_api_key),
+) -> PredictionLogSummary:
+    return summarize_prediction_logs(window_hours=window_hours)
