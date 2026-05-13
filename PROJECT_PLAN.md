@@ -19,7 +19,7 @@ clearer.
 | Security | Done | Optional `X-API-Key` auth through `API_KEY` |
 | EDA | Done | Full exploratory notebook at `notebooks/eda.ipynb` |
 | Tests | Done | API and preprocessing tests passing |
-| Docker | Partial | Compose exists; local Docker validation still pending |
+| Docker | Partial | Compose includes data, MLflow, training, export, and API; validation pending |
 | Deployment | Next | Railway deployment not started |
 
 ## Performance Target
@@ -50,6 +50,8 @@ clearer.
 - [x] Add `/logs/summary` endpoint for aggregate monitoring counters.
 - [x] Add optional API key authentication.
 - [x] Add Dockerfile and Docker Compose services for data, MLflow, train, and API.
+- [x] Add production model export CLI and Docker Compose export service.
+- [x] Add `.dockerignore` so local secrets and training artifacts are not copied into images.
 - [x] Add GitHub Actions CI for lint and tests.
 - [x] Publish initial project to GitHub.
 - [x] Build full EDA notebook with class imbalance, numeric distributions, categorical churn rates, tenure cohorts, and correlation analysis.
@@ -63,6 +65,7 @@ Goal: prove the README Docker workflow works end to end.
 - [ ] Run `docker compose --profile data run --rm download-data`.
 - [ ] Run `docker compose up -d mlflow`.
 - [ ] Run `docker compose --profile training run --rm train`.
+- [ ] Run `docker compose --profile export run --rm export-model`.
 - [ ] Run `docker compose up -d api`.
 - [ ] Verify `GET /health`.
 - [ ] Verify `POST /predict`.
@@ -90,22 +93,22 @@ the trained model artifact directly into the Docker image at build time using
 `mlflow.sklearn.save_model`. The API loads from a local path instead of the MLflow
 registry, removing the runtime dependency on a live tracking server.
 
-- [ ] Add an export CLI, likely `python -m src.export_model`.
-- [ ] Load the current `models:/telco-churn-xgb@production` model from MLflow.
-- [ ] Save it to `model_artifact/` with `mlflow.sklearn.save_model`.
+- [x] Add an export CLI: `python -m src.export_model`.
+- [x] Load the current `models:/telco-churn-xgb@production` model from MLflow.
+- [x] Save it to `model_artifact/` with `mlflow.sklearn.save_model`.
 - [x] Keep `model_artifact/` ignored in Git because it is generated binary output.
-- [ ] Document the export command in README.
+- [x] Document the export command in README.
 
 ### 4. Prepare Railway Deployment
 
 Goal: deploy API to Railway with a self-contained image.
 
-- [ ] Update `load_model()` to accept a local path when `MODEL_URI` points to a directory.
-- [ ] Add `COPY model_artifact/ /app/model_artifact/` to the production Docker build.
-- [ ] Set `MODEL_URI=/app/model_artifact` in Railway environment variables.
-- [ ] Do not require `MLFLOW_TRACKING_URI` in Railway runtime.
+- [x] Confirm `load_model()` accepts local MLflow model directories.
+- [x] Ensure Docker image builds can include `model_artifact/` when it exists locally.
+- [x] Document `MODEL_URI=/app/model_artifact` in Railway environment variables.
+- [x] Do not require `MLFLOW_TRACKING_URI` in Railway runtime.
 - [ ] Validate Railway deployment end to end.
-- [ ] Add Railway environment variable table to README.
+- [x] Add Railway environment variable table to README.
 
 ### 5. Monitoring Polish
 
@@ -163,7 +166,10 @@ is a known future improvement if live reloading becomes necessary.
 | 2026-05-13 | API `/health` with trained model | Passed |
 | 2026-05-13 | API `/predict` with trained model | Passed |
 | 2026-05-13 | `ruff check .` | Passed |
-| 2026-05-13 | `pytest -q` | Passed, 11 tests |
+| 2026-05-13 | `pytest -q` | Passed, 13 tests |
+| 2026-05-13 | `python -m src.export_model` | Passed, wrote `model_artifact/` |
+| 2026-05-13 | `python -m src.evaluate --model-uri model_artifact` | Passed, ROC-AUC 0.8418 |
+| 2026-05-13 | API `load_model()` with `MODEL_URI=model_artifact` | Passed |
 
 ## Next Session Checklist
 

@@ -11,6 +11,7 @@ load_dotenv(BASE_DIR / ".env")
 RAW_DATA_PATH = BASE_DIR / "data" / "raw" / "WA_Fn-UseC_-Telco-Customer-Churn.csv"
 PROCESSED_DIR = BASE_DIR / "data" / "processed"
 REPORTS_DIR = BASE_DIR / "reports"
+MODEL_ARTIFACT_DIR = BASE_DIR / "model_artifact"
 
 TARGET_COLUMN = "Churn"
 ID_COLUMN = "customerID"

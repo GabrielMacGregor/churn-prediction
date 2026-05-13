@@ -7,9 +7,7 @@ services:
       KAGGLE_DATASET: ${KAGGLE_DATASET:-blastchar/telco-customer-churn}
       KAGGLE_USERNAME: ${KAGGLE_USERNAME:-}
       KAGGLE_KEY: ${KAGGLE_KEY:-}
-    command: >
-      bash -c "pip install -r requirements-data.txt --quiet &&
-               python -m src.download_data"
+    command: python -m src.download_data
     volumes:
       - .:/app
 
@@ -34,12 +32,8 @@ services:
 
   api:
     build: .
-    depends_on:
-      mlflow:
-        condition: service_healthy
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      MODEL_URI: models:/telco-churn-xgb@production
+      MODEL_URI: /app/model_artifact
       LOG_DB_PATH: /app/data/processed/predictions.db
     ports:
       - "8000:8000"
@@ -62,5 +56,19 @@ services:
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
     command: python -m src.train
+    volumes:
+      - .:/app
+
+  export-model:
+    build: .
+    profiles:
+      - export
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MODEL_URI: models:/telco-churn-xgb@production
+    command: python -m src.export_model --output-dir /app/model_artifact
     volumes:
       - .:/app

@@ -20,6 +20,7 @@ Raw Kaggle CSV
   -> XGBoost training with cross-validation
   -> MLflow Tracking
   -> MLflow Model Registry
+  -> Exported local model artifact
   -> FastAPI /predict
   -> SQLite prediction audit log
   -> Docker / Railway
@@ -38,6 +39,7 @@ Raw Kaggle CSV
 | Monitoring | `/logs` and `/logs/summary` backed by SQLite prediction audit logs |
 | Security | Optional `X-API-Key` authentication through `API_KEY` |
 | Infra | Docker Compose for data download, MLflow, training, and API |
+| Deployment artifact | Exported local `model_artifact/` for self-contained Docker images |
 | CI | GitHub Actions runs Ruff and Pytest |
 
 ## Dataset
@@ -96,7 +98,10 @@ docker compose up -d mlflow
 # 4. Train and register the model
 docker compose --profile training run --rm train
 
-# 5. Start the API
+# 5. Export the promoted production model to a local artifact
+docker compose --profile export run --rm export-model
+
+# 6. Start the API
 docker compose up -d api
 ```
 
@@ -123,6 +128,10 @@ python -m src.download_data
 
 python -m src.preprocess
 python -m src.train
+
+# Optional for local-path serving and required before production image builds
+python -m src.export_model
+
 uvicorn api.main:app --reload
 ```
 
@@ -147,7 +156,7 @@ jupyter notebook notebooks/eda.ipynb
 {
   "status": "ok",
   "model_loaded": true,
-  "model_uri": "models:/telco-churn-xgb@production"
+  "model_uri": "/app/model_artifact"
 }
 ```
 
@@ -167,8 +176,8 @@ Example response:
   "churn": true,
   "churn_probability": 0.82,
   "threshold": 0.5,
-  "model_uri": "models:/telco-churn-xgb@production",
-  "model_version": "production"
+  "model_uri": "/app/model_artifact",
+  "model_version": null
 }
 ```
 
@@ -221,6 +230,7 @@ churn-prediction-api/
 |   |-- config.py
 |   |-- download_data.py
 |   |-- evaluate.py
+|   |-- export_model.py
 |   |-- preprocess.py
 |   `-- train.py
 |-- tests/
@@ -242,6 +252,28 @@ is promoted.
 
 The promotion decision is saved in `reports/training_metrics.json` and tagged on the
 MLflow model version.
+
+## Export Production Model Artifact
+
+Deployment does not require a live MLflow tracking server. After training promotes a
+model to the `production` alias, export that model to a generated local artifact:
+
+```bash
+python -m src.export_model
+```
+
+With Docker Compose:
+
+```bash
+docker compose --profile export run --rm export-model
+```
+
+This writes an MLflow model directory to `model_artifact/`. The directory is ignored by
+Git because it is generated binary output, but it is intentionally included in Docker
+build contexts so production images can load `MODEL_URI=/app/model_artifact`.
+
+Re-run the export command after promoting a new production model, then rebuild/restart
+the API image to serve the new version.
 
 ## Current Model Performance
 
