@@ -34,6 +34,7 @@ Raw Kaggle CSV
 | Training | XGBoost with 5-fold stratified cross-validation |
 | Tracking | MLflow logs params, metrics, reports, and model artifacts |
 | Versioning | MLflow Model Registry with ROC-AUC gated `production` alias promotion |
+| Explainability | Permutation importance and SHAP artifact CLI |
 | REST API | FastAPI with Swagger docs at `/docs` |
 | Validation | Pydantic schema for the customer payload |
 | Monitoring | `/logs` and `/logs/summary` backed by SQLite prediction audit logs |
@@ -248,6 +249,7 @@ churn-prediction-api/
 |   |-- config.py
 |   |-- download_data.py
 |   |-- evaluate.py
+|   |-- explain.py
 |   |-- export_model.py
 |   |-- preprocess.py
 |   `-- train.py
@@ -306,6 +308,49 @@ First registered production model:
 | Accuracy | 0.8028 | 0.0143 | 0.8034 |
 
 The full report is generated at `reports/training_metrics.json`.
+
+## Explainability
+
+Generate model explanation artifacts after a model is trained and promoted:
+
+```bash
+python -m src.explain
+```
+
+If SHAP is not installed in the current environment yet, validate permutation
+importance only:
+
+```bash
+python -m src.explain --skip-shap
+```
+
+The CLI writes:
+
+- `reports/permutation_importance.csv`
+- `reports/shap_summary.png`
+- `reports/shap_waterfall.png`
+- `reports/explainability_report.json`
+
+The first permutation run identified these strongest drivers:
+
+| Rank | Feature |
+|---:|---|
+| 1 | Contract |
+| 2 | tenure |
+| 3 | InternetService |
+| 4 | OnlineSecurity |
+| 5 | MonthlyCharges |
+
+The first SHAP run highlighted these largest mean absolute drivers on the transformed
+feature space:
+
+| Rank | Feature | Mean abs SHAP |
+|---:|---|---:|
+| 1 | Contract = Month-to-month | 0.6982 |
+| 2 | tenure | 0.4319 |
+| 3 | MonthlyCharges | 0.3123 |
+| 4 | OnlineSecurity = No | 0.2586 |
+| 5 | InternetService = Fiber optic | 0.2026 |
 
 ## Train/Test Splits
 

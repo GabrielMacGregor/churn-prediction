@@ -16,6 +16,7 @@ clearer.
 | Promotion | Done | Production alias gated by `test_roc_auc` |
 | Serving | Done | FastAPI `/health` and `/predict` |
 | Monitoring | Done | `/logs` and windowed `/logs/summary` backed by SQLite |
+| Explainability | Done | Permutation importance and SHAP artifacts generated and logged to MLflow |
 | Security | Done | Optional `X-API-Key` auth through `API_KEY` |
 | EDA | Done | Full exploratory notebook at `notebooks/eda.ipynb` |
 | Tests | Done | API and preprocessing tests passing |
@@ -53,6 +54,7 @@ clearer.
 - [x] Add Dockerfile and Docker Compose services for data, MLflow, train, and API.
 - [x] Add production model export CLI and Docker Compose export service.
 - [x] Add `.dockerignore` so local secrets and training artifacts are not copied into images.
+- [x] Add explainability CLI with permutation importance and SHAP artifact generation.
 - [x] Add GitHub Actions CI for lint and tests.
 - [x] Publish initial project to GitHub.
 - [x] Build full EDA notebook with class imbalance, numeric distributions, categorical churn rates, tenure cohorts, and correlation analysis.
@@ -124,13 +126,15 @@ Goal: make monitoring more useful for a product team story.
 
 Goal: make the model interpretable and link it back to the `/predict` endpoint story.
 
-- [ ] Compute permutation importance on the test set after training.
-- [ ] Save permutation importance to `reports/permutation_importance.csv`.
-- [ ] Compute SHAP values using `shap.TreeExplainer` where compatible with the XGBoost pipeline.
-- [ ] Generate and save SHAP summary plot to `reports/shap_summary.png`.
-- [ ] Generate and save SHAP waterfall plot for a representative high-risk prediction.
-- [ ] Log explainability artifacts to the MLflow run.
-- [ ] Document top SHAP drivers in README after the next training run.
+- [x] Compute permutation importance on the test set after training.
+- [x] Save permutation importance to `reports/permutation_importance.csv`.
+- [x] Add SHAP generation with `shap.TreeExplainer` for the fitted XGBoost pipeline.
+- [x] Install/validate `shap` in the local environment.
+- [x] Generate and save SHAP summary plot to `reports/shap_summary.png`.
+- [x] Generate and save SHAP waterfall plot for a representative high-risk prediction.
+- [x] Log generated explainability artifacts to the MLflow run.
+- [x] Document top permutation drivers in README.
+- [x] Document top SHAP drivers in README after the full SHAP run.
 
 ## Technical Decisions
 
@@ -148,6 +152,7 @@ Goal: make the model interpretable and link it back to the `/predict` endpoint s
 | Notebook dependencies | `requirements-dev.txt` | Keeps notebook-only tooling separate from the core runtime install |
 | Deployment model loading | Train with MLflow, deploy with bundled local artifact | Removes runtime dependency on a live MLflow server |
 | Production model artifact | Generated locally, ignored by Git | `model_artifact/` is binary output produced from MLflow, not source code |
+| Explainability artifacts | Generated locally, ignored by Git, logged to MLflow | Keeps reports reproducible without committing binary outputs |
 
 ## Model Reload Policy
 
@@ -173,6 +178,8 @@ is a known future improvement if live reloading becomes necessary.
 | 2026-05-13 | API `load_model()` with `MODEL_URI=model_artifact` | Passed |
 | 2026-05-13 | `docker --version` | Blocked, Docker not installed/in PATH |
 | 2026-05-13 | GitHub Actions status via connector/`gh` | Blocked, connector 404 and `gh` not installed |
+| 2026-05-13 | `python -m src.explain --skip-shap` | Passed, logged permutation importance to MLflow |
+| 2026-05-13 | `python -m src.explain` | Passed, logged permutation and SHAP artifacts to MLflow |
 
 ## Next Session Checklist
 

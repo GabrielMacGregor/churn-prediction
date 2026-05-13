@@ -31,3 +31,5 @@ model_artifact/
 
 reports/*.json
 reports/*.html
+reports/*.csv
+reports/*.png
