@@ -10,6 +10,8 @@ Production-grade ML system that predicts customer churn for a telecom company. T
 is to demonstrate the full ML lifecycle: downloading data, preprocessing, training,
 tracking, versioning, serving, monitoring, and testing.
 
+Project progress is tracked in [PROJECT_PLAN.md](PROJECT_PLAN.md).
+
 ## Architecture
 
 ```text
