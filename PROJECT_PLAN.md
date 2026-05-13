@@ -17,9 +17,20 @@ clearer.
 | Serving | Done | FastAPI `/health` and `/predict` |
 | Monitoring | Done | `/logs` and `/logs/summary` backed by SQLite |
 | Security | Done | Optional `X-API-Key` auth through `API_KEY` |
+| EDA | Done | Full exploratory notebook at `notebooks/eda.ipynb` |
 | Tests | Done | API and preprocessing tests passing |
 | Docker | Partial | Compose exists; local Docker validation still pending |
 | Deployment | Next | Railway deployment not started |
+
+## Performance Target
+
+| Metric | Target | Current (v1) |
+|---|---:|---:|
+| Test ROC-AUC | >= 0.82 | **0.8418** achieved |
+| Test F1 | n/a | 0.5859 |
+| Test Precision | n/a | 0.6644 |
+| Test Recall | n/a | 0.5241 |
+| Test Accuracy | n/a | 0.8034 |
 
 ## Completed Milestones
 
@@ -41,6 +52,7 @@ clearer.
 - [x] Add Dockerfile and Docker Compose services for data, MLflow, train, and API.
 - [x] Add GitHub Actions CI for lint and tests.
 - [x] Publish initial project to GitHub.
+- [x] Build full EDA notebook with class imbalance, numeric distributions, categorical churn rates, tenure cohorts, and correlation analysis.
 
 ## Active Work Queue
 
@@ -69,7 +81,33 @@ Goal: make sure the published repo passes CI on GitHub.
 - [ ] Confirm `pytest -q` passes.
 - [ ] Fix workflow paths if GitHub treats the repo differently than local.
 
-### 3. Add Monitoring Polish
+### 3. Export Production Model Artifact
+
+Goal: create a production-ready model directory that can be copied into a Docker image.
+
+Model loading strategy: train and register with MLflow locally; for deployment, bundle
+the trained model artifact directly into the Docker image at build time using
+`mlflow.sklearn.save_model`. The API loads from a local path instead of the MLflow
+registry, removing the runtime dependency on a live tracking server.
+
+- [ ] Add an export CLI, likely `python -m src.export_model`.
+- [ ] Load the current `models:/telco-churn-xgb@production` model from MLflow.
+- [ ] Save it to `model_artifact/` with `mlflow.sklearn.save_model`.
+- [x] Keep `model_artifact/` ignored in Git because it is generated binary output.
+- [ ] Document the export command in README.
+
+### 4. Prepare Railway Deployment
+
+Goal: deploy API to Railway with a self-contained image.
+
+- [ ] Update `load_model()` to accept a local path when `MODEL_URI` points to a directory.
+- [ ] Add `COPY model_artifact/ /app/model_artifact/` to the production Docker build.
+- [ ] Set `MODEL_URI=/app/model_artifact` in Railway environment variables.
+- [ ] Do not require `MLFLOW_TRACKING_URI` in Railway runtime.
+- [ ] Validate Railway deployment end to end.
+- [ ] Add Railway environment variable table to README.
+
+### 5. Monitoring Polish
 
 Goal: make monitoring more useful for a product team story.
 
@@ -78,24 +116,17 @@ Goal: make monitoring more useful for a product team story.
 - [ ] Add average churn probability by prediction label.
 - [ ] Add README examples for authenticated `/logs` calls.
 
-### 4. Add Model Explainability
+### 6. Explainability with SHAP
 
-Goal: make the model easier to explain to recruiters and stakeholders.
+Goal: make the model interpretable and link it back to the `/predict` endpoint story.
 
-- [ ] Export feature importance after training.
-- [ ] Save feature importance to `reports/feature_importance.csv`.
-- [ ] Add feature importance plot to MLflow artifacts.
-- [ ] Document top drivers in the README after the next training run.
-
-### 5. Prepare Deployment
-
-Goal: make the app deployable without local assumptions.
-
-- [ ] Decide how MLflow artifacts are hosted for Railway.
-- [ ] Add Railway-specific deployment notes.
-- [ ] Validate environment variables for deployed API.
-- [ ] Decide whether logs stay SQLite or move to Postgres.
-- [ ] Add a production health check note for missing model behavior.
+- [ ] Compute permutation importance on the test set after training.
+- [ ] Save permutation importance to `reports/permutation_importance.csv`.
+- [ ] Compute SHAP values using `shap.TreeExplainer` where compatible with the XGBoost pipeline.
+- [ ] Generate and save SHAP summary plot to `reports/shap_summary.png`.
+- [ ] Generate and save SHAP waterfall plot for a representative high-risk prediction.
+- [ ] Log explainability artifacts to the MLflow run.
+- [ ] Document top SHAP drivers in README after the next training run.
 
 ## Technical Decisions
 
@@ -109,6 +140,17 @@ Goal: make the app deployable without local assumptions.
 | Logs | SQLite | Simple local audit trail for portfolio and development |
 | Auth | Optional API key | Easy to demo locally, stricter when deployed |
 | Data | Kaggle API | Reproducible data ingestion without committing raw CSV |
+| Data dependency | `kaggle` stays in `requirements.txt` for now | Keeps setup simple until runtime and development dependencies are split later |
+| Notebook dependencies | `requirements-dev.txt` | Keeps notebook-only tooling separate from the core runtime install |
+| Deployment model loading | Train with MLflow, deploy with bundled local artifact | Removes runtime dependency on a live MLflow server |
+| Production model artifact | Generated locally, ignored by Git | `model_artifact/` is binary output produced from MLflow, not source code |
+
+## Model Reload Policy
+
+The API loads the model once at startup via the lifespan hook. It lazy-loads on the
+first `/predict` call only when no model was found at startup. New production versions
+registered in MLflow require an API restart to take effect. A `/reload` admin endpoint
+is a known future improvement if live reloading becomes necessary.
 
 ## Verification Log
 
@@ -132,4 +174,3 @@ Start here next time:
 3. Validate Docker locally if Docker is available.
 4. Choose the next feature from the Active Work Queue.
 5. Update this file before committing.
-

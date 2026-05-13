@@ -106,8 +106,9 @@ Open:
 - API health: `http://localhost:8000/health`
 - MLflow UI: `http://localhost:5000`
 
-The API also attempts a lazy model reload on `/predict`, so if the API started before
-the model was registered, the first prediction after training can load the new model.
+The API attempts a lazy model load on `/predict` only when no model was loaded at
+startup. New model versions require an API restart until an admin reload endpoint is
+added.
 
 ## Running Locally
 
@@ -296,17 +297,21 @@ and should not block API or training CI.
 
 ## Railway Notes
 
+For Railway, the preferred production path is a self-contained image that includes a
+generated local model artifact. Train and track with MLflow locally, export the
+production model to `model_artifact/`, copy it into the image, and load it with a local
+`MODEL_URI`.
+
 Set these variables in Railway:
 
 | Variable | Value |
 |---|---|
-| `MLFLOW_TRACKING_URI` | Your MLflow server URL |
-| `MODEL_URI` | `models:/telco-churn-xgb@production` |
+| `MODEL_URI` | `/app/model_artifact` |
 | `LOG_DB_PATH` | `/data/predictions.db` |
 | `API_KEY` | Secret value required in `X-API-Key` when enabled |
 
-For production, use a persistent database or storage volume for logs and MLflow
-metadata. SQLite is intentionally simple for local development and portfolio demos.
+For production, use a persistent database or storage volume for logs. SQLite is
+intentionally simple for local development and portfolio demos.
 
 ## Next Steps
 

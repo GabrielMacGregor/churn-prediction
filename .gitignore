@@ -27,6 +27,7 @@ data/processed/*.sqlite
 mlruns/
 mlartifacts/
 mlflow.db
+model_artifact/
 
 reports/*.json
 reports/*.html
