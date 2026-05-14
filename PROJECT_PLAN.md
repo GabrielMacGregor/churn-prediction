@@ -20,7 +20,7 @@ clearer.
 | Security | Done | Optional `X-API-Key` auth through `API_KEY` |
 | EDA | Done | Full exploratory notebook at `notebooks/eda.ipynb` |
 | Tests | Done | API and preprocessing tests passing |
-| Docker | Partial | Compose includes data, MLflow, training, export, and API; validation pending |
+| Docker | Done | Compose validated end to end with data download, MLflow, training, export, and API smoke test |
 | Deployment | Next | Railway deployment not started |
 
 ## Performance Target
@@ -61,23 +61,7 @@ clearer.
 
 ## Active Work Queue
 
-### 1. Validate Docker Flow
-
-Goal: prove the README Docker workflow works end to end.
-
-- [ ] Run `docker compose --profile data run --rm download-data`.
-- [ ] Run `docker compose up -d mlflow`.
-- [ ] Run `docker compose --profile training run --rm train`.
-- [ ] Run `docker compose --profile export run --rm export-model`.
-- [ ] Run `docker compose up -d api`.
-- [ ] Verify `GET /health`.
-- [ ] Verify `POST /predict`.
-- [ ] Verify `GET /logs/summary`.
-
-Notes:
-- Docker was not available in the local PATH during the first implementation pass.
-
-### 2. Check GitHub CI
+### 1. Check GitHub CI
 
 Goal: make sure the published repo passes CI on GitHub.
 
@@ -87,7 +71,27 @@ Goal: make sure the published repo passes CI on GitHub.
 - [ ] Confirm `pytest -q` passes.
 - [ ] Fix workflow paths if GitHub treats the repo differently than local.
 
-### 3. Export Production Model Artifact
+### 2. Validate Auth In Docker
+
+Goal: prove the optional API key protection works in the containerized flow.
+
+- [x] Set `API_KEY` in `.env`.
+- [x] Recreate the API container.
+- [x] Verify protected endpoints return `401` without `X-API-Key`.
+- [x] Verify protected endpoints return `200` with `X-API-Key`.
+
+### 3. Prepare Railway Deployment
+
+Goal: deploy API to Railway with a self-contained image.
+
+- [x] Confirm `load_model()` accepts local MLflow model directories.
+- [x] Ensure Docker image builds can include `model_artifact/` when it exists locally.
+- [x] Document `MODEL_URI=/app/model_artifact` in Railway environment variables.
+- [x] Do not require `MLFLOW_TRACKING_URI` in Railway runtime.
+- [ ] Validate Railway deployment end to end.
+- [x] Add Railway environment variable table to README.
+
+### 4. Export Production Model Artifact
 
 Goal: create a production-ready model directory that can be copied into a Docker image.
 
@@ -101,17 +105,6 @@ registry, removing the runtime dependency on a live tracking server.
 - [x] Save it to `model_artifact/` with `mlflow.sklearn.save_model`.
 - [x] Keep `model_artifact/` ignored in Git because it is generated binary output.
 - [x] Document the export command in README.
-
-### 4. Prepare Railway Deployment
-
-Goal: deploy API to Railway with a self-contained image.
-
-- [x] Confirm `load_model()` accepts local MLflow model directories.
-- [x] Ensure Docker image builds can include `model_artifact/` when it exists locally.
-- [x] Document `MODEL_URI=/app/model_artifact` in Railway environment variables.
-- [x] Do not require `MLFLOW_TRACKING_URI` in Railway runtime.
-- [ ] Validate Railway deployment end to end.
-- [x] Add Railway environment variable table to README.
 
 ### 5. Monitoring Polish
 
@@ -153,6 +146,7 @@ Goal: make the model interpretable and link it back to the `/predict` endpoint s
 | Deployment model loading | Train with MLflow, deploy with bundled local artifact | Removes runtime dependency on a live MLflow server |
 | Production model artifact | Generated locally, ignored by Git | `model_artifact/` is binary output produced from MLflow, not source code |
 | Explainability artifacts | Generated locally, ignored by Git, logged to MLflow | Keeps reports reproducible without committing binary outputs |
+| MLflow in Docker | Explicit `--allowed-hosts` for Compose networking and localhost | MLflow 3 rejects internal container host headers unless allowed explicitly |
 
 ## Model Reload Policy
 
@@ -180,14 +174,21 @@ is a known future improvement if live reloading becomes necessary.
 | 2026-05-13 | GitHub Actions status via connector/`gh` | Blocked, connector 404 and `gh` not installed |
 | 2026-05-13 | `python -m src.explain --skip-shap` | Passed, logged permutation importance to MLflow |
 | 2026-05-13 | `python -m src.explain` | Passed, logged permutation and SHAP artifacts to MLflow |
+| 2026-05-14 | `docker compose build` | Passed, built `churnprediction-api` and `churnprediction-mlflow` |
+| 2026-05-14 | `docker compose --profile data run --rm download-data` | Passed, downloaded `WA_Fn-UseC_-Telco-Customer-Churn.csv` |
+| 2026-05-14 | `docker compose up -d mlflow` | Passed, service healthy on `localhost:5000` |
+| 2026-05-14 | `docker compose --profile training run --rm train` | Passed, model version 1 promoted with test ROC-AUC `0.8397` |
+| 2026-05-14 | `docker compose --profile export run --rm export-model` | Passed, wrote `model_artifact/` from `models:/telco-churn-xgb@production` |
+| 2026-05-14 | `docker compose up -d api` | Passed, API container started on `localhost:8000` |
+| 2026-05-14 | Docker API `GET /health` | Passed, `model_loaded=true` and `model_uri=/app/model_artifact` |
+| 2026-05-14 | Docker API `POST /predict` | Passed, returned churn prediction `1` with probability `0.6404` |
+| 2026-05-14 | Docker API `GET /logs` and `/logs/summary?window_hours=24` | Passed, recorded and aggregated the smoke-test prediction |
+| 2026-05-14 | Docker API auth on `GET /logs/summary` | Passed, returned `401` without `X-API-Key` and `200` with the configured key |
 
 ## Next Session Checklist
 
-Start with [NEXT_SESSION.md](NEXT_SESSION.md) when moving to the Docker-enabled
-machine.
-
 1. Check `git status --short`.
 2. Check GitHub Actions for the latest push.
-3. Validate Docker locally.
-4. Choose the next feature from the Active Work Queue.
+3. Decide whether to start the Railway deployment track.
+4. Update Git author config and commit the Docker validation docs if still pending.
 5. Update this file before committing.
